@@ -7,33 +7,33 @@ class Net {
       // if (this.input.length != this.output.length)
       //   this.error(`input and output length varies`);
 
-      if (netObject.inputNodes != netObject.inputNodesShape.length) {
-        this.print(`detecting different input node number than shapes`)
-        process.exit(1)
-        this.print(`generating ${netObject.inputNodes - netObject.inputNodesShape.length} input nodes`)
-        // TODO: input node generation
-      }
+      // if (netObject.inputNodes != netObject.inputNodesShape.length) {
+      //   this.print(`detecting different input node number than shapes`)
+      //   process.exit(1)
+      //   this.print(`generating ${netObject.inputNodes - netObject.inputNodesShape.length} input nodes`)
+      //   // TODO: input node generation
+      // }
 
       let id = 0
 
       this.inputNodes = netObject.inputNodesShape.map( f => ({
         id: (id += 1),
         type: 'input',
-        f: x => [1, ...f(x)]
+        f: f
       }))
 
       this.layerNodes = netObject.layerNodesShape.map( f => ({
         id: (id += 1),
         type: 'layer',
-        f: (x, w) => [1, f(x, w)],
-        weights: new Array(netObject.inputLength + 1).fill(0).map(Math.random)
+        f: f,
+        weights: new Array(this.inputNodes.length + 1).fill(0).map(Math.random)
       }))
 
       this.outputNodes = netObject.outputNodesShape.map( f => ({
         id: (id += 1),
         type: 'output',
-        f: (x, w) => f(x, w),
-        weights: new Array(2).fill(0).map(Math.random)
+        f: f,
+        weights: new Array(this.layerNodes.length + 1).fill(0).map(Math.random)
       }))
 
       this.nodes = this.inputNodes.concat(this.layerNodes).concat(this.outputNodes)
@@ -41,13 +41,11 @@ class Net {
   }
 
   runInput(input) {
-    input.forEach( (e, i) => {
-      this.inputNodes.forEach( ({id, type, f}) => {
-        this.res.push({
-          id: `${i}.${id}`,
-          type: type,
-          res: f(e)
-        })
+    this.inputNodes.forEach( ({id, type, f}) => {
+      this.res.push({
+        id: `${id}`,
+        type: type,
+        res: f(input)
       })
     })
 
@@ -55,27 +53,27 @@ class Net {
   }
 
   runLayer() {
-    this.res.forEach( e => {
+    // this.res.forEach( e => {
       this.layerNodes.forEach( ({id, type, f, weights}) => {
         this.res.push({
-          id: `${e.id}.${id}`,
+          id: `${id}`,
           type: type,
-          res: f(e.res, weights)
+          res: f([1, ...this.res.filter(({type}) => type == 'input').map(e => e.res)], weights)
         })
       })
-    })
+    // })
   }
 
   runOutput() {
-    this.res.filter(e => e.type == 'layer').forEach(e => {
+    // this.res.filter(e => e.type == 'layer').forEach(e => {
       this.outputNodes.forEach(({id, type, f, weights}) => {
         this.res.push({
-          id: `${e.id}.${id}`,
+          id: `${id}`,
           type: type,
-          res: f(e.res, weights)
+          res: f([1, ...this.res.filter(({type}) => type == 'layer').map(e => e.res)], weights)
         })
       })
-    })
+    // })
   }
 
   runForward(input) {
@@ -86,41 +84,73 @@ class Net {
     this.runOutput()
   }
 
-  runBackward() {
-    this.res.filter(e => e.type == 'output').forEach( ({id, res}) => {
+  runBackward(y) {
+    // console.log(y)
+    // console.log(this.res.filter(e => e.type == 'output').map((e,i) => e.res - y[i]))
+    // this.res.filter(e => e.type == 'output').forEach( e => console.log(e))
+    // console.dir(this, {depth: null})
+
+    this.res.filter(e => e.type == 'output').forEach( ({id, res}, i) => {
       let path = id.split('.').map(Number)
+      let output_res = res
 
-      let output_error = res - this.output[path[0]]
-      let outputId = path.pop()
-      let outputNode = this.nodes.find( ({id}) => id == outputId )
+      // console.log(output_res, y[i])
+      let output_error = output_res - y[i]
+      let outputNode = this.nodes.find( e => e.id == id )
+      // console.log(outputNode);
+      let outputWeight = outputNode.weights.slice(1)
 
-      let layer_res = this.res.find(e => e.id == path.join('.'))
-      let layerId = path.pop()
-      let layerNode = this.nodes.find( ({id}) => id == layerId )
-      let layer_error = layer_res.res[1] * (1 - layer_res.res[1]) * dot([outputNode.weights[1]], [output_error])
+      this.res.filter(e => e.type == 'layer').forEach( ({id, res}, i) => {
+        let layer_res = res
+        let layerNode = this.nodes.find( e => e.id == id )
+        let layer_error = outputWeight[i] * output_error// outputNode.weights.map(w => w * output_error).reduce( (p,e) => p + e, 0)
 
-      let input_res = this.res.find(e => e.id == path.join('.'))
-      let inputId = path.pop()
-      let inputNode = this.nodes.find( ({id}) => id == inputId )
+        // console.log("layer_error", layer_error)
 
-      let layer_pd = input_res.res.map(e => e * layer_error)
-      let output_pd = layer_res.res.map(e => e * output_error)
+        // layer_error.forEach(layer_error => {
+          let layer_pd = this.res.filter(e => e.type == 'input').map(e => {
+            // console.log(-this.alpha , layer_res , (1 - layer_res) , layer_error , e.res)
+            return -this.alpha * layer_res * (1 - layer_res) * layer_error * e.res
+          })
+          // console.log(layer_pd.reduce( (p,e) => p + e, 0) / layer_pd.length < Math.EPSILON)
 
-      layerNode.weights = layerNode.weights.map((e, i) => e + (-this.alpha * layer_pd[i]))
-      outputNode.weights = outputNode.weights.map((e, i) => e + (-this.alpha * output_pd[i]))
+          let bias_weights = layerNode.weights.shift()
+          layerNode.weights = [bias_weights, ...layerNode.weights.map((w, i) => w + layer_pd[i])]
+        // })
+
+      })
+      let output_pd = this.res.filter(e => e.type == 'layer').map(e => {
+        // console.log(output_error, e.res)
+        return -this.alpha * output_res * (1 - output_res) * output_error * e.res
+        // return e.res * output_error
+      })
+      let bias_weights = outputNode.weights.shift()
+      outputNode.weights = [bias_weights, ...outputNode.weights.map((e, i) => e + output_pd[i])]
+
+      // console.log(output_pd.reduce( (p,e) => p * e, 1) < Math.EPSILON)
+      if (output_pd.reduce( (p,e) => p * e, 1) < 0.0001)
+      {
+        this.end = true
+      }
     })
   }
 
   run(iter) {
     var hrstart = process.hrtime()
+    this.end = false
 
-    for (var i = 0; i < (iter || 1); i++) {
-      this.runForward(this.input)
-      this.runBackward()
+    for (var i = 0; i < (iter || 1) && this.end != true; i++) {
+      this.input.forEach( (e, i) => {
+        this.runForward(e)
+        this.runBackward( this.output[i] )
+      })
+      if (i % (iter / 10) == 0)
+        process.stdout.write('.')
     }
 
     var hrend = process.hrtime(hrstart)
     console.info('Execution time (hr): %ds %dms', hrend[0], hrend[1] / 1000000)
+    console.info('Iteration log: %d', i)
   }
 
   ask() {
@@ -138,16 +168,25 @@ class Net {
 
     rl.prompt();
     rl.on('line', (line) => {
-        let ask = eval(line)
-        this.runForward([ask])
-        console.log(line + " -> " + this.res.filter(e => e.type == 'output').map(e =>
-          // e.res
-          // isNaN(e.res) ? e.res :
-          round_to_precision(e.res, 0.01)
-        )
-        .join(' | ')
-        // .reduce( (p,e) => p * e, 1)
+      let ask = eval(line)
+
+      this.runForward(ask)
+
+      let res = this.res.filter(e => e.type == 'output').map(e =>
+        round_to_precision(e.res, 0.01)
       )
+      let _res = res.map(e => Math.round(e))
+
+      let trained = this.input.find( e => JSON.stringify(e)==JSON.stringify(ask))
+      let trainedI = this.input.indexOf( trained )
+      let output = this.output[trainedI]
+
+      let isok = trainedI != -1 ? _res.join('') == output.join('') : _res.join('') == ("0011" + ask.join(''))
+
+      // console.log( '\t' + line + " -> " + res.join(' | ') )
+      // console.log('\t\t\t\t' + res.map(e => String(e).padEnd(5)).join(' | ') )
+      console.log('\t' + ask + " -> " + _res.join('') + `\t ${trained ? "true" : "false"} : ${isok}` )
+      // console.log(`[ ${ask} -> ${ parseInt(_res.join(''), 2)} ]`)
 
       rl.prompt();
     }).on('close', () => {
