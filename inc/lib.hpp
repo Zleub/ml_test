@@ -8,6 +8,7 @@
 #include <vector>
 #include <tuple>
 
+#include <identity.hpp>
 #include <load.hpp>
 
 std::vector<std::string> split(const std::string& s, char delimiter);

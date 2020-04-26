@@ -1,91 +1,14 @@
 #include <lib.hpp>
 #include <ne.hpp>
+#include <nn.hpp>
 
+#include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
-class nn {
-public:
-  typedef ne<double, double> inputType;
-  typedef ne<std::tuple<std::vector<double>, std::vector<double>>, double> layerType;
+#define _USE_MATH_DEFINES
+#include <math.h>
 
-  typedef double (*hypothesisType)(nn, double);
-
-  nn() {};
-  ~nn() {};
-
-  hypothesisType hypothesis;
-
-  void setInputLayer(std::vector<inputType> l) {
-    this->inputLayer = l;
-    for(inputType &ne : this->inputLayer)
-      ne.weights.push_back( ((double) rand() / (RAND_MAX)) );
-  }
-
-  std::vector<inputType> getInputLayer(void) {
-    return this->inputLayer;
-  }
-
-  void setOutputLayer(std::vector<layerType> l) {
-    this->outputLayer = l;
-    for(layerType &ne : this->outputLayer)
-      for (size_t i = 0; i < this->inputLayer.size(); i++) {
-        ne.weights.push_back( ((double) rand() / (RAND_MAX)) );
-        // ne.weights.push_back( 0.5 );
-      }
-      // ne.weights.resize( this->inputLayer.size() );
-  }
-
-  std::vector<layerType> getOutputLayer(void) {
-    return this->outputLayer;
-  }
-
-  void setHypothesis(hypothesisType f) {
-    this->hypothesis = f;
-  }
-
-  std::vector<double> forward( double i ) {
-    std::vector<double> _res;
-    for( inputType in : this->inputLayer ) {
-      _res.push_back( in.f(i) );
-    }
-
-    std::vector<double> res;
-    for ( layerType out : this->outputLayer) {
-      res.push_back( out.f( std::make_tuple(out.weights, _res) ) );
-    }
-
-    // for (double r : res)
-    //   std::cout << r << std::endl;
-
-    return res;
-  }
-
-  double backward( double x, double y ) {
-    double alpha = -0.01;
-    std::vector<double> r = forward(x);
-
-    for (size_t i = 0; i < r.size(); i++) {
-      double min = this->hypothesis(*this, x) - y;
-      // double error = 1. / 2. * pow(min, 2);
-      layerType &out = this->outputLayer[i];
-
-      for (size_t j = 0; j < out.weights.size(); j++) {
-        inputType &in = this->inputLayer[j];
-        in.weights[0] += alpha * min;
-
-        double &w = out.weights[j];
-        // w += alpha * error;
-        w += alpha * min * x;
-      }
-    }
-    return 0;
-  }
-
-private:
-  std::vector<inputType> inputLayer;
-  std::vector<layerType> outputLayer;
-
-};
+#include <lib_visual.hpp>
 
 double hypothesis(nn net, double i) {
   return net.getInputLayer()[0].weights[0] + i * net.getOutputLayer()[0].weights[0];
@@ -152,22 +75,19 @@ int main() {
   // }
   // file.close();
 
-  GLFWwindow* window;
 
-    /* Initialize the library */
-    if (!glfwInit())
-        return -1;
+  GLFWwindow* window = init_glfw();
+  std::vector<float> circle = get_circle_vertices(0, 0, 0.2);
+  std::vector<float> circle2 = get_circle_vertices(0.2, 0.2, 0.2);
 
-    /* Create a windowed mode window and its OpenGL context */
-    window = glfwCreateWindow(640, 480, "Hello World", NULL, NULL);
-    if (!window)
-    {
-        glfwTerminate();
-        return -1;
-    }
+  for (float i : circle2) {
+	  circle.push_back(i);
+  }
 
-    /* Make the window's context current */
-    glfwMakeContextCurrent(window);
+  int VBO = vector_to_vbo(circle);
+  int VAO = vbo_to_vao(VBO, circle);
+
+  std::cout << circle.size() << std::endl;
 
     /* Loop until the user closes the window */
     while (!glfwWindowShouldClose(window))
@@ -175,7 +95,11 @@ int main() {
         /* Render here */
         glClear(GL_COLOR_BUFFER_BIT);
 
-        /* Swap front and back buffers */
+		//glUseProgram(shaderProgram);
+		glBindVertexArray(VAO);
+		glDrawArrays(GL_LINE_LOOP, 0, circle.size() / 3);
+
+		/* Swap front and back buffers */
         glfwSwapBuffers(window);
 
         /* Poll for and process events */

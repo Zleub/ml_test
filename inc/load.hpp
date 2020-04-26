@@ -1,3 +1,6 @@
+#ifndef LOAD
+# define LOAD
+
 template <typename T>
 std::vector<T> load(std::string filename, T(*parse)(std::string))
 {
@@ -21,3 +24,5 @@ std::vector<T> load(std::string filename, T(*parse)(std::string))
 
   return v;
 }
+
+#endif

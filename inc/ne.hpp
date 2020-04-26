@@ -1,3 +1,6 @@
+#ifndef NE
+# define NE
+
 template<class I, class O>
 class ne {
 public:
@@ -9,3 +12,5 @@ public:
   ne(activate f) : f(f) {};
   ~ne() {};
 };
+
+#endif
